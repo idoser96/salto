@@ -560,7 +560,7 @@ const logNaclFileUpdateErrorContext = (
 }
 
 // Returns a list of all static files that existed in the changes 'before' and doesn't exist in the 'after'
-export const getDanglingStaticFiles = (fileChanges: DetailedChange[]): StaticFile[] => {
+export const getDanglingStaticFiles = (fileChanges: Change[]): StaticFile[] => {
   const removalFiles = fileChanges.filter(isRemovalChange).map(getChangeData).map(getNestedStaticFiles).flat()
 
   const modifications = fileChanges.filter(isModificationChange)
@@ -837,7 +837,7 @@ const buildNaclFilesSource = (
 
     // This method was written with the assumption that each static file is pointed by no more
     // then one value in the nacls. A ticket was open to fix that (SALTO-954)
-    const removeDanglingStaticFiles = async (fileChanges: DetailedChange[]): Promise<void> =>
+    const removeDanglingStaticFiles = async (fileChanges: Change[]): Promise<void> =>
       getDanglingStaticFiles(fileChanges).forEach(file => staticFilesSource.delete(file))
 
     const changesByFileName = await groupChangesByFilename(changes)

@@ -14,11 +14,12 @@
 * limitations under the License.
 */
 import {
+  Change,
   DetailedChange,
   Element,
   ElemID,
   getChangeData, isAdditionChange,
-  isRemovalChange,
+  isRemovalChange, toChange,
 } from '@salto-io/adapter-api'
 import { logger } from '@salto-io/logging'
 import { collections } from '@salto-io/lowerdash'
@@ -100,7 +101,7 @@ export const buildInMemState = (
     })
   }
 
-  const deleteRemovedStaticFiles = async (elemChanges: DetailedChange[]): Promise<void> => {
+  const deleteRemovedStaticFiles = async (elemChanges: Change[]): Promise<void> => {
     const { staticFilesSource } = await stateData()
     const files = getDanglingStaticFiles(elemChanges)
     await awu(files).forEach(file => staticFilesSource.delete(file))
@@ -134,6 +135,15 @@ export const buildInMemState = (
     })
   }, 'updateStateElements')
 
+  // Sets the element and delete all the static files that no longer exists on it
+  const setElement = async (element: Element): Promise<void> => {
+    const state = await stateData()
+    const beforeElement = await state.elements.get(element.elemID)
+    const filesToDelete = getDanglingStaticFiles([toChange({ before: beforeElement, after: element })])
+
+    await state.elements.set(element)
+    await awu(filesToDelete).forEach(async f => state.staticFilesSource.delete(f))
+  }
 
   return {
     getAll: async (): Promise<AsyncIterable<Element>> => (await stateData()).elements.getAll(),
@@ -147,8 +157,7 @@ export const buildInMemState = (
       )
       return (await stateData()).elements.deleteAll(ids)
     },
-    set: async (element: Element): Promise<void> =>
-      (await stateData()).elements.set(element),
+    set: setElement,
     setAll: async (elements: ThenableIterable<Element>): Promise<void> =>
       (await stateData()).elements.setAll(elements),
     remove: removeId,
