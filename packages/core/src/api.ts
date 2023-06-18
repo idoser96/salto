@@ -14,10 +14,26 @@
 * limitations under the License.
 */
 import {
-  Adapter, InstanceElement, ObjectType, ElemID, AccountId, getChangeData, isField,
-  Change, ChangeDataType, AdapterFailureInstallResult,
-  isAdapterSuccessInstallResult, AdapterSuccessInstallResult, AdapterAuthentication,
-  SaltoError, Element, DetailedChange, isCredentialError, DeployExtraProperties, ReferenceMapping,
+  Adapter,
+  InstanceElement,
+  ObjectType,
+  ElemID,
+  AccountId,
+  getChangeData,
+  isField,
+  Change,
+  ChangeDataType,
+  AdapterFailureInstallResult,
+  isAdapterSuccessInstallResult,
+  AdapterSuccessInstallResult,
+  AdapterAuthentication,
+  SaltoError,
+  Element,
+  DetailedChange,
+  isCredentialError,
+  DeployExtraProperties,
+  ReferenceMapping,
+  isAdditionOrModificationChange, isFieldChange,
 } from '@salto-io/adapter-api'
 import { EventEmitter } from 'pietile-eventemitter'
 import { logger } from '@salto-io/logging'
@@ -181,10 +197,11 @@ export const deploy = async (
     const detailedChanges = appliedChanges.map(change => getDetailedChangesFromChanges(change)).flat()
     await workspace.state().updateStateFromChanges({ changes: detailedChanges })
 
-    await awu(appliedChanges).forEach(async change => {
-      const updatedElement = await getUpdatedElement(change)
-      await changedElements.set(updatedElement)
-    })
+    await awu(appliedChanges).filter(change => (isAdditionOrModificationChange(change) || isFieldChange(change)))
+      .forEach(async change => {
+        const updatedElement = await getUpdatedElement(change)
+        await changedElements.set(updatedElement)
+      })
   }
   const { errors, appliedChanges, extraProperties } = await deployActions(
     actionPlan, adapters, reportProgress, postDeployAction, checkOnly
