@@ -205,12 +205,6 @@ export const deploy = async (
     await updatedElements.forEach(async updatedElement => {
       await changedElements.set(updatedElement)
     })
-
-    await awu(appliedChanges).filter(change => (isAdditionOrModificationChange(change) || isFieldChange(change)))
-      .forEach(async change => {
-        const updatedElement = await getUpdatedElement(change)
-        await changedElements.set(updatedElement)
-      })
   }
   const { errors, appliedChanges, extraProperties } = await deployActions(
     actionPlan, adapters, reportProgress, postDeployAction, checkOnly
