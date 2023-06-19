@@ -194,8 +194,17 @@ export const deploy = async (
   }
 
   const postDeployAction = async (appliedChanges: ReadonlyArray<Change>): Promise<void> => {
+    // create updated elements before updating the state, to prevent any unwanted behavior
+    const updatedElements = awu(appliedChanges)
+      .filter(change => (isAdditionOrModificationChange(change) || isFieldChange(change)))
+      .map(getUpdatedElement)
+
     const detailedChanges = appliedChanges.map(change => getDetailedChangesFromChanges(change)).flat()
     await workspace.state().updateStateFromChanges({ changes: detailedChanges })
+
+    await updatedElements.forEach(async updatedElement => {
+      await changedElements.set(updatedElement)
+    })
 
     await awu(appliedChanges).filter(change => (isAdditionOrModificationChange(change) || isFieldChange(change)))
       .forEach(async change => {

@@ -224,8 +224,9 @@ const getAnnotationTypeChanges = ({
 }
 
 export const detailedCompare = (
-  before: ChangeDataType,
-  after: ChangeDataType,
+  // This function supports all types of Elements, but doesn't necessarily support Variable (SALTO-4363)
+  before: Element,
+  after: Element,
   compareOptions?: DetailedCompareOptions
 ): DetailedChange[] => {
   const createFieldChanges = compareOptions?.createFieldChanges ?? false

@@ -14,17 +14,16 @@
 * limitations under the License.
 */
 import {
-  Change,
   DetailedChange,
   Element,
   ElemID,
   getChangeData, isAdditionChange,
-  isRemovalChange, toChange,
+  isRemovalChange,
 } from '@salto-io/adapter-api'
 import { logger } from '@salto-io/logging'
 import { collections } from '@salto-io/lowerdash'
 import _ from 'lodash'
-import { applyDetailedChanges } from '@salto-io/adapter-utils'
+import { applyDetailedChanges, detailedCompare } from '@salto-io/adapter-utils'
 import { getNestedStaticFiles } from '../nacl_files/nacl_file_update'
 import { PathIndex, updateTopLevelPathIndex, updatePathIndex } from '../path_index'
 import { RemoteMap } from '../remote_map'
@@ -101,7 +100,7 @@ export const buildInMemState = (
     })
   }
 
-  const deleteRemovedStaticFiles = async (elemChanges: Change[]): Promise<void> => {
+  const deleteRemovedStaticFiles = async (elemChanges: DetailedChange[]): Promise<void> => {
     const { staticFilesSource } = await stateData()
     const files = getDanglingStaticFiles(elemChanges)
     await awu(files).forEach(file => staticFilesSource.delete(file))
@@ -139,7 +138,10 @@ export const buildInMemState = (
   const setElement = async (element: Element): Promise<void> => {
     const state = await stateData()
     const beforeElement = await state.elements.get(element.elemID)
-    const filesToDelete = getDanglingStaticFiles([toChange({ before: beforeElement, after: element })])
+
+    const filesToDelete = beforeElement !== undefined
+      ? getDanglingStaticFiles(detailedCompare(beforeElement, element))
+      : []
 
     await state.elements.set(element)
     await awu(filesToDelete).forEach(async f => state.staticFilesSource.delete(f))
