@@ -18,7 +18,7 @@ import { elements as elementsUtils, filterUtils } from '@salto-io/adapter-compon
 import { CORE_ANNOTATIONS, ElemID, InstanceElement, ObjectType, ReferenceExpression, Value } from '@salto-io/adapter-api'
 import filterCreator, {
   customObjectFieldOptionType,
-} from '../../../src/filters/custom_objects/custom_object_field_options'
+} from '../../../src/filters/custom_field_options/custom_object_field_options'
 import { createFilterCreatorParams } from '../../utils'
 import {
   CUSTOM_FIELD_OPTIONS_FIELD_NAME,

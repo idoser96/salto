@@ -91,7 +91,7 @@ import userFieldFilter from './filters/custom_field_options/user_field'
 import dynamicContentFilter from './filters/dynamic_content'
 import dynamicContentReferencesFilter from './filters/dynamic_content_references'
 import restrictionFilter from './filters/restriction'
-import organizationFieldFilter from './filters/organization_field'
+import organizationFieldFilter from './filters/custom_field_options/organization_field'
 import removeDefinitionInstancesFilter from './filters/remove_definition_instances'
 import hardcodedChannelFilter from './filters/hardcoded_channel'
 import usersFilter from './filters/user'
@@ -147,8 +147,9 @@ import localeFilter from './filters/locale'
 import ticketStatusCustomStatusDeployFilter from './filters/ticket_status_custom_status'
 import { filterOutInactiveInstancesForType } from './inactive'
 import handleIdenticalAttachmentConflicts from './filters/handle_identical_attachment_conflicts'
+import customObjectFilter from './filters/custom_objects/custom_object'
 import customObjectFieldFilter from './filters/custom_objects/custom_object_fields'
-import customObjectFieldOptionsFilter from './filters/custom_objects/custom_object_field_options'
+import customObjectFieldOptionsFilter from './filters/custom_field_options/custom_object_field_options'
 
 const { makeArray } = collections.array
 const log = logger(module)
@@ -217,10 +218,11 @@ export const DEFAULT_FILTERS = [
   guideDefaultLanguage, // needs to be after guideGuideSettings
   guideServiceUrl,
   guideLocalesFilter, // Needs to be after guideServiceUrl
+  customObjectFilter,
   customObjectFieldOptionsFilter,
   customObjectFieldFilter, // need to be after customObjectFieldOptionsFilter
-  // fieldReferencesFilter should be after usersFilter, macroAttachmentsFilter, tagsFilter
-  // and guideLocalesFilter, customObjectFieldFilter
+  // fieldReferencesFilter should be after:
+  // usersFilter, macroAttachmentsFilter, tagsFilter, guideLocalesFilter, customObjectFilter, customObjectFieldFilter
   fieldReferencesFilter,
   addAliasFilter, // should run after fieldReferencesFilter
   // listValuesMissingReferencesFilter should be after fieldReferencesFilter
@@ -257,6 +259,7 @@ export const DEFAULT_FILTERS = [
 
 const SKIP_RESOLVE_TYPE_NAMES = [
   'organization_field__custom_field_options',
+  CUSTOM_OBJECT_FIELD_OPTIONS_TYPE_NAME,
   'macro',
   'macro_attachment',
   'brand_logo',
