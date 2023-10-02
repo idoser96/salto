@@ -23,12 +23,13 @@ import {
   isReferenceExpression,
   Change,
   isAdditionOrModificationChange,
-  getChangeData,
+  getChangeData, isInstanceChange,
 } from '@salto-io/adapter-api'
 import _ from 'lodash'
 import { references as referencesUtils, client as clientUtils } from '@salto-io/adapter-components'
 import { collections } from '@salto-io/lowerdash'
 import { logger } from '@salto-io/logging'
+import { getParent, getParents } from '@salto-io/adapter-utils'
 import { FilterCreator } from '../../filter'
 import {
   CUSTOM_OBJECT_FIELD_OPTIONS_TYPE_NAME,
@@ -285,8 +286,9 @@ const filterUserConditions = (
 
 // Returns all the custom object conditions that reference a user in the changes
 // We don't return the condition's path because it is irrelevant, the same userId will be equal in different conditions
-const getUserConditions = (changes: Change<InstanceElement>[]): CustomObjectCondition[] => {
+const getUserConditions = (changes: Change[]): CustomObjectCondition[] => {
   const instances = changes
+    .filter(isInstanceChange)
     .filter(isAdditionOrModificationChange)
     .map(getChangeData)
 
@@ -301,6 +303,18 @@ const getUserConditions = (changes: Change<InstanceElement>[]): CustomObjectCond
     filterUserConditions(field.value.relationship_filter, isRelevantFilter))
 
   return triggerConditions.concat(ticketAndCustomObjectFieldFilters)
+}
+
+// The fields are returned by order, so we save it to be able to properly reorder them on deploy
+// This is needed because two fields can have the same positions, and then be sorted by non multi-env fields
+const setCustomObjectFieldsActualPositions = (customObjectFields: InstanceElement[]): void => {
+  const customObjectFieldsByParent = _.groupBy(
+    customObjectFields.filter(field => getParents(field).length === 1),
+    field => getParent(field).elemID.getFullName()
+  )
+  Object.values(customObjectFieldsByParent).forEach(fields => fields.forEach((field, i) => {
+    field.value.actual_position = i
+  }))
 }
 
 /**
@@ -339,6 +353,8 @@ const customObjectFieldsFilter: FilterCreator = ({ config, client }) => {
       const ticketFields = instances.filter(instance => instance.elemID.typeName === TICKET_FIELD_TYPE_NAME)
       const customObjectFields = instances.filter(inst => inst.elemID.typeName === CUSTOM_OBJECT_FIELD_TYPE_NAME)
 
+      setCustomObjectFieldsActualPositions(customObjectFields)
+
       triggers.forEach(
         trigger => transformTriggerValue({
           trigger,
@@ -360,7 +376,7 @@ const customObjectFieldsFilter: FilterCreator = ({ config, client }) => {
     },
     // Knowing if a value is a user depends on the custom_object_field attached to its condition's field
     // For that reason we need to specifically handle it here, using 'is_user_value' field that we added in onFetch
-    preDeploy: async (changes: Change<InstanceElement>[]) => {
+    preDeploy: async changes => {
       const users = await getUsers(paginator)
       const usersByEmail = _.keyBy(users, user => user.email)
 
@@ -395,12 +411,32 @@ const customObjectFieldsFilter: FilterCreator = ({ config, client }) => {
         }
       }
     },
-    onDeploy: async (changes: Change<InstanceElement>[]) => {
+    onDeploy: async changes => {
       getUserConditions(changes).forEach(condition => {
         condition.value = _.isString(condition.value) && userPathToOriginalValue[condition.value]
           ? userPathToOriginalValue[condition.value]
           : condition.value
       })
+    },
+    deploy: async changes => {
+      const customObjectFieldsChanges = changes
+        .filter(isInstanceChange)
+        .filter(isAdditionOrModificationChange)
+        .filter(change => change.data.after.elemID.typeName === CUSTOM_OBJECT_FIELD_TYPE_NAME)
+        .map(change => change.data.after)
+
+      const customObjectFieldsByParent = _.groupBy(
+        customObjectFieldsChanges,
+        change => getParent(change.data.after).elemID.getFullName()
+      )
+
+      return {
+        deployResult: {
+          appliedChanges: [],
+          errors: [],
+        },
+        leftoverChanges: changes,
+      }
     },
   }
 }

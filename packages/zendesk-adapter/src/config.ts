@@ -2582,6 +2582,7 @@ export const DEFAULT_TYPES: ZendeskApiConfig['types'] = {
       sourceTypeName: 'custom_object__custom_object_fields',
       fieldsToHide: FIELDS_TO_HIDE.concat(
         { fieldName: 'id', fieldType: 'number' },
+        { fieldName: 'position', fieldType: 'number' },
       ),
       fieldsToOmit: FIELDS_TO_OMIT.concat(
         { fieldName: 'description', fieldType: 'string' },
