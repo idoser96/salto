@@ -23,7 +23,7 @@ import {
   isReferenceExpression,
   Change,
   isAdditionOrModificationChange,
-  getChangeData, ElemID,
+  getChangeData,
 } from '@salto-io/adapter-api'
 import _ from 'lodash'
 import { references as referencesUtils, client as clientUtils } from '@salto-io/adapter-components'
@@ -271,27 +271,21 @@ const transformTicketAndCustomObjectFieldValue = ({
   })
 }
 
-const filterUserConditions = (conditions: Value, instancePath: string[], filterCondition: (cond: Value) => boolean):
-  {
-  path: string[]
-  condition: CustomObjectCondition
-}[] => {
+const filterUserConditions = (
+  conditions: Value,
+  filterCondition: (condition: Value) => boolean
+): CustomObjectCondition[] => {
   const allConditions = _.isArray(conditions?.all) ? conditions?.all : []
   const anyConditions = _.isArray(conditions?.any) ? conditions?.any : []
 
-  return [
-    ...allConditions.map((condition: Value, i: number) => ({ path: [...instancePath, 'all', i], condition })),
-    ...anyConditions.map((condition: Value, i: number) => ({ path: [...instancePath, 'any', i], condition })),
-  ]
-    .filter(({ condition }) => filterCondition(condition))
-    .filter(({ condition }) => condition.is_user_value)
+  return allConditions.concat(anyConditions)
+    .filter(filterCondition)
+    .filter((condition: CustomObjectCondition) => condition.is_user_value)
 }
 
-const getUserConditions = (changes: Change<InstanceElement>[]):
-  {
-    path: string[]
-    condition: CustomObjectCondition
-  }[] => {
+// Returns all the custom object conditions that reference a user in the changes
+// We don't return the condition's path because it is irrelevant, the same userId will be equal in different conditions
+const getUserConditions = (changes: Change<InstanceElement>[]): CustomObjectCondition[] => {
   const instances = changes
     .filter(isAdditionOrModificationChange)
     .map(getChangeData)
@@ -300,18 +294,11 @@ const getUserConditions = (changes: Change<InstanceElement>[]):
   const ticketFields = instances.filter(instance => instance.elemID.typeName === TICKET_FIELD_TYPE_NAME)
   const customObjectFields = instances.filter(instance => instance.elemID.typeName === CUSTOM_OBJECT_FIELD_TYPE_NAME)
 
-  const triggerConditions = triggers.flatMap(trigger => filterUserConditions(
-    trigger.value.conditions,
-    trigger.elemID.getFullNameParts().concat('conditions'),
-    isRelevantCondition
-  ))
+  const triggerConditions = triggers.flatMap(trigger =>
+    filterUserConditions(trigger.value.conditions, isRelevantCondition))
 
   const ticketAndCustomObjectFieldFilters = ticketFields.concat(customObjectFields).flatMap(field =>
-    filterUserConditions(
-      field.value.relationship_filter,
-      field.elemID.getFullNameParts().concat('relationship_filter'),
-      isRelevantFilter
-    ))
+    filterUserConditions(field.value.relationship_filter, isRelevantFilter))
 
   return triggerConditions.concat(ticketAndCustomObjectFieldFilters)
 }
@@ -371,34 +358,37 @@ const customObjectFieldsFilter: FilterCreator = ({ config, client }) => {
         })
       )
     },
-    // Knowing if a value is a user depends onh the custom_object_field attached to its condition's field
+    // Knowing if a value is a user depends on the custom_object_field attached to its condition's field
     // For that reason we need to specifically handle it here, using 'is_user_value' field that we added in onFetch
     preDeploy: async (changes: Change<InstanceElement>[]) => {
       const users = await getUsers(paginator)
       const usersByEmail = _.keyBy(users, user => user.email)
 
-      const missingUsers: { path: string[]; condition: CustomObjectCondition}[] = []
-      getUserConditions(changes).forEach(({ path, condition }) => {
+      const missingUserConditions: CustomObjectCondition[] = []
+      getUserConditions(changes).forEach(condition => {
         if (_.isString(condition.value) && usersByEmail[condition.value]) {
           const userId = usersByEmail[condition.value].id.toString()
-          userPathToOriginalValue[path.join(ElemID.NAMESPACE_SEPARATOR)] = condition.value
+          userPathToOriginalValue[userId] = condition.value
           condition.value = userId
         } else {
-          missingUsers.push({ path, condition })
+          missingUserConditions.push(condition)
         }
       })
 
       const { defaultMissingUserFallback } = config[DEPLOY_CONFIG] ?? {}
-      if (missingUsers.length > 0 && defaultMissingUserFallback !== undefined) {
+      if (missingUserConditions.length > 0 && defaultMissingUserFallback !== undefined) {
         const userEmails = new Set(users.map(user => user.email))
         const fallbackValue = await getUserFallbackValue(
           defaultMissingUserFallback,
           userEmails,
           client
         )
-        if (fallbackValue !== undefined) {
-          missingUsers.forEach(({ condition }) => {
-            condition.value = fallbackValue
+        if (fallbackValue !== undefined && usersByEmail[fallbackValue]) {
+          const fallbackUserId = usersByEmail[fallbackValue].id.toString()
+          userPathToOriginalValue[fallbackUserId] = fallbackValue
+          // We do not need to revert the fallback value in onDeploy because we change the value in the service
+          missingUserConditions.forEach(condition => {
+            condition.value = fallbackUserId
           })
         } else {
           log.error('Error while trying to get defaultMissingUserFallback value in customObjectFieldsFilter')
@@ -406,9 +396,9 @@ const customObjectFieldsFilter: FilterCreator = ({ config, client }) => {
       }
     },
     onDeploy: async (changes: Change<InstanceElement>[]) => {
-      getUserConditions(changes).forEach(({ path, condition }) => {
-        condition.value = userPathToOriginalValue[path.join(ElemID.NAMESPACE_SEPARATOR)]
-          ? userPathToOriginalValue[path.join(ElemID.NAMESPACE_SEPARATOR)]
+      getUserConditions(changes).forEach(condition => {
+        condition.value = _.isString(condition.value) && userPathToOriginalValue[condition.value]
+          ? userPathToOriginalValue[condition.value]
           : condition.value
       })
     },

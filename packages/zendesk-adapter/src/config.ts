@@ -284,6 +284,20 @@ export const DEFAULT_TYPES: ZendeskApiConfig['types'] = {
       },
     },
   },
+  trigger__conditions__all: {
+    transformation: {
+      fieldTypeOverrides: [
+        { fieldName: 'is_user_value', fieldType: 'boolean' },
+      ],
+    },
+  },
+  trigger__conditions__any: {
+    transformation: {
+      fieldTypeOverrides: [
+        { fieldName: 'is_user_value', fieldType: 'boolean' },
+      ],
+    },
+  },
   trigger_category: {
     transformation: {
       sourceTypeName: 'trigger_categories__trigger_categories',
