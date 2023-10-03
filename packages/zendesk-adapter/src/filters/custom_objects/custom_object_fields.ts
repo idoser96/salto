@@ -418,26 +418,6 @@ const customObjectFieldsFilter: FilterCreator = ({ config, client }) => {
           : condition.value
       })
     },
-    deploy: async changes => {
-      const customObjectFieldsChanges = changes
-        .filter(isInstanceChange)
-        .filter(isAdditionOrModificationChange)
-        .filter(change => change.data.after.elemID.typeName === CUSTOM_OBJECT_FIELD_TYPE_NAME)
-        .map(change => change.data.after)
-
-      const customObjectFieldsByParent = _.groupBy(
-        customObjectFieldsChanges,
-        change => getParent(change.data.after).elemID.getFullName()
-      )
-
-      return {
-        deployResult: {
-          appliedChanges: [],
-          errors: [],
-        },
-        leftoverChanges: changes,
-      }
-    },
   }
 }
 
