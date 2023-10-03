@@ -20,10 +20,12 @@ import {
   InstanceElement, isAdditionOrModificationChange, isInstanceChange,
   isInstanceElement,
   ListType,
-  ObjectType, ReferenceExpression,
+  ObjectType, ReferenceExpression, SaltoElementError, Value,
 } from '@salto-io/adapter-api'
 import _ from 'lodash'
 import { getParent, getParents, inspectValue } from '@salto-io/adapter-utils'
+import { collections } from '@salto-io/lowerdash'
+import { elements as elementsUtils } from '@salto-io/adapter-components'
 import { FilterCreator } from '../../filter'
 import {
   CUSTOM_OBJECT_FIELD_ORDER_TYPE_NAME,
@@ -32,6 +34,9 @@ import {
   ZENDESK,
 } from '../../constants'
 
+const { RECORDS_PATH } = elementsUtils
+const { makeArray } = collections.array
+
 const ORDER_FIELD = `${CUSTOM_OBJECT_FIELD_TYPE_NAME}s`
 
 const customObjectFieldsOrderType = new ObjectType({
@@ -39,7 +44,7 @@ const customObjectFieldsOrderType = new ObjectType({
   fields: {
     [ORDER_FIELD]: { refType: new ListType(BuiltinTypes.NUMBER) },
   },
-
+  path: [ZENDESK, elementsUtils.TYPES_PATH, CUSTOM_OBJECT_FIELD_ORDER_TYPE_NAME],
 })
 
 /**
@@ -62,15 +67,21 @@ const customObjectFieldsOrderFilter: FilterCreator = ({ client }) => ({
       customObjectFields.filter(field => getParents(field).length === 1),
       field => getParent(field).elemID.getFullName()
     )
+
+    if (!_.isEmpty(customObjectFieldsByParentName)) {
+      elements.push(customObjectFieldsOrderType)
+    }
+
     Object.entries(customObjectFieldsByParentName).forEach(([parentName, fields]) => {
       const parent = customObjectsByFullName[parentName]
+      const instanceName = `${parent.elemID.name}_fields_order`
       const orderInstance = new InstanceElement(
-        `${parentName}_order`,
+        instanceName,
         customObjectFieldsOrderType,
         {
-          [ORDER_FIELD]: fields.map(field => field.value.id),
+          [ORDER_FIELD]: fields.map(field => new ReferenceExpression(field.elemID, field)),
         },
-        undefined,
+        [ZENDESK, RECORDS_PATH, CUSTOM_OBJECT_FIELD_ORDER_TYPE_NAME, instanceName],
         {
           [CORE_ANNOTATIONS.PARENT]: parent
             ? new ReferenceExpression(parent.elemID, parent)
@@ -81,28 +92,58 @@ const customObjectFieldsOrderFilter: FilterCreator = ({ client }) => ({
     })
   },
   deploy: async changes => {
-    const deployResultsPromises = changes
-      .filter(isInstanceChange)
-      .filter(isAdditionOrModificationChange)
-      .map(getChangeData)
-      .filter(instance => instance.elemID.typeName === CUSTOM_OBJECT_FIELD_ORDER_TYPE_NAME)
-      .map(async customObjectFieldOrder => {
-        const parentKey = getParent(customObjectFieldOrder).value.key
+    const [relevantChanges, leftoverChanges] = _.partition(
+      changes,
+      change =>
+        isInstanceChange(change)
+        && isAdditionOrModificationChange(change)
+        && getChangeData(change).elemID.typeName === CUSTOM_OBJECT_FIELD_ORDER_TYPE_NAME
+    )
+
+    const deployResultsPromises = relevantChanges
+      .filter(isInstanceChange) // used to type check
+      .map(async change => {
+        const customObjectFieldOrder = getChangeData(change)
+        const parentKey = getParents(customObjectFieldOrder)[0].key
         if (parentKey === undefined) {
-          return 'parent key is undefined'
+          return {
+            change,
+            error: 'parent key is undefined',
+          }
         }
-        const result = await client.put({
-          url: `/api/v2/custom_objects/${parentKey}/fields`,
-          data: {
-            ids: customObjectFieldOrder.value[ORDER_FIELD],
-          },
-        })
-        return result.status === 200
-          ? undefined
-          : `reorder request failed, ${inspectValue(result.data)}`
+        const fieldsIds = customObjectFieldOrder.value[ORDER_FIELD]
+          .filter((field: Value) => _.isPlainObject(field) && _.isNumber(field.id))
+          .map((field: { id: number }) => field.id.toString())
+        try {
+          await client.put({
+            url: `/api/v2/custom_objects/${parentKey}/fields/reorder`,
+            data: {
+              custom_object_field_ids: fieldsIds,
+            },
+          })
+          return { change }
+        } catch (e) {
+          return {
+            change,
+            error: `reorder request failed, ${inspectValue(makeArray(e.response?.data.error))}`,
+          }
+        }
       })
 
-    const deployResult = await Promise.all(deployResultsPromises)
+    const deployResults = await Promise.all(deployResultsPromises)
+    const [successes, errors] = _.partition(deployResults, result => result.error === undefined)
+
+    return {
+      deployResult: {
+        appliedChanges: successes.map(success => success.change),
+        errors: errors.map(({ change, error }): SaltoElementError => ({
+          elemID: getChangeData(change).elemID,
+          severity: 'Error',
+          message: error ?? '', // We checked that error is defined in the errors partition
+        })),
+      },
+      leftoverChanges,
+    }
   },
 })
 
