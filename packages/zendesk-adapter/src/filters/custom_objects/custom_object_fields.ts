@@ -96,6 +96,7 @@ type CustomObjectCondition = {
   field: string | TemplateExpression
   operator: string
   value?: string | ReferenceExpression
+  // eslint-disable-next-line camelcase
   is_user_value?: boolean
 }
 
