@@ -15,15 +15,7 @@
 * limitations under the License.
 */
 import { elements as elementsUtils, filterUtils } from '@salto-io/adapter-components'
-import {
-  CORE_ANNOTATIONS,
-  ElemID,
-  InstanceElement,
-  ObjectType,
-  ReferenceExpression,
-  toChange,
-  Value,
-} from '@salto-io/adapter-api'
+import { CORE_ANNOTATIONS, ElemID, InstanceElement, ObjectType, ReferenceExpression, Value } from '@salto-io/adapter-api'
 import filterCreator, {
   customObjectFieldOptionType,
 } from '../../../src/filters/custom_field_options/custom_object_field_options'
