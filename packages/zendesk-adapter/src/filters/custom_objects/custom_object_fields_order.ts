@@ -18,14 +18,14 @@ import {
   Element,
   ElemID, getChangeData,
   InstanceElement, isAdditionOrModificationChange, isInstanceChange,
-  isInstanceElement,
-  ListType,
+  isInstanceElement, ListType,
   ObjectType, ReferenceExpression, SaltoElementError, Value,
 } from '@salto-io/adapter-api'
 import _ from 'lodash'
-import { getParent, getParents, inspectValue } from '@salto-io/adapter-utils'
-import { collections } from '@salto-io/lowerdash'
+import { getParent, getParents, inspectValue, isResolvedReferenceExpression } from '@salto-io/adapter-utils'
+import { values as lowerDashValues } from '@salto-io/lowerdash'
 import { elements as elementsUtils } from '@salto-io/adapter-components'
+import { logger } from '@salto-io/logging'
 import { FilterCreator } from '../../filter'
 import {
   CUSTOM_OBJECT_FIELD_ORDER_TYPE_NAME,
@@ -35,11 +35,12 @@ import {
 } from '../../constants'
 
 const { RECORDS_PATH } = elementsUtils
-const { makeArray } = collections.array
+const log = logger(module)
+const { isDefined } = lowerDashValues
 
-const ORDER_FIELD = `${CUSTOM_OBJECT_FIELD_TYPE_NAME}s`
+export const ORDER_FIELD = `${CUSTOM_OBJECT_FIELD_TYPE_NAME}s`
 
-const customObjectFieldsOrderType = new ObjectType({
+export const customObjectFieldsOrderType = new ObjectType({
   elemID: new ElemID(ZENDESK, CUSTOM_OBJECT_FIELD_ORDER_TYPE_NAME),
   fields: {
     [ORDER_FIELD]: { refType: new ListType(BuiltinTypes.NUMBER) },
@@ -84,7 +85,7 @@ const customObjectFieldsOrderFilter: FilterCreator = ({ client }) => ({
         [ZENDESK, RECORDS_PATH, CUSTOM_OBJECT_FIELD_ORDER_TYPE_NAME, instanceName],
         {
           [CORE_ANNOTATIONS.PARENT]: parent
-            ? new ReferenceExpression(parent.elemID, parent)
+            ? [new ReferenceExpression(parent.elemID, parent)]
             : undefined,
         }
       )
@@ -104,16 +105,26 @@ const customObjectFieldsOrderFilter: FilterCreator = ({ client }) => ({
       .filter(isInstanceChange) // used to type check
       .map(async change => {
         const customObjectFieldOrder = getChangeData(change)
-        const parentKey = getParents(customObjectFieldOrder)[0].key
+        const parentKey = getParent(customObjectFieldOrder).value.key
         if (parentKey === undefined) {
           return {
             change,
-            error: 'parent key is undefined',
+            error: 'parent custom_object key is undefined',
           }
         }
         const fieldsIds = customObjectFieldOrder.value[ORDER_FIELD]
-          .filter((field: Value) => _.isPlainObject(field) && _.isNumber(field.id))
-          .map((field: { id: number }) => field.id.toString())
+          .map((field: Value) => {
+            if (isResolvedReferenceExpression(field)) {
+              return field.value.value.id.toString()
+            }
+            if (_.isPlainObject(field) && _.isNumber(field.id)) {
+              return field.id.toString()
+            }
+            log.error(`customObjectFieldOrder - field is not a resolved reference expression or a plain object - ${field}`)
+            // It is ok to filter ids out, because the api supports reordering without all ids
+            return undefined
+          })
+          .filter(isDefined)
         try {
           await client.put({
             url: `/api/v2/custom_objects/${parentKey}/fields/reorder`,
@@ -125,7 +136,7 @@ const customObjectFieldsOrderFilter: FilterCreator = ({ client }) => ({
         } catch (e) {
           return {
             change,
-            error: `reorder request failed, ${inspectValue(makeArray(e.response?.data.error))}`,
+            error: `fields reorder request failed, ${inspectValue(e.response)}`,
           }
         }
       })
