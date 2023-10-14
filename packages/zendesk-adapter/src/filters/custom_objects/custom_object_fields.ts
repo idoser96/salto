@@ -29,7 +29,6 @@ import _ from 'lodash'
 import { references as referencesUtils, client as clientUtils } from '@salto-io/adapter-components'
 import { collections } from '@salto-io/lowerdash'
 import { logger } from '@salto-io/logging'
-import { getParent, getParents } from '@salto-io/adapter-utils'
 import { FilterCreator } from '../../filter'
 import {
   CUSTOM_OBJECT_FIELD_OPTIONS_TYPE_NAME,
@@ -305,18 +304,6 @@ const getUserConditions = (changes: Change[]): CustomObjectCondition[] => {
   return triggerConditions.concat(ticketAndCustomObjectFieldFilters)
 }
 
-// The fields are returned by order, so we save it to be able to properly reorder them on deploy
-// This is needed because two fields can have the same positions, and then be sorted by non multi-env fields
-const setCustomObjectFieldsActualPositions = (customObjectFields: InstanceElement[]): void => {
-  const customObjectFieldsByParent = _.groupBy(
-    customObjectFields.filter(field => getParents(field).length === 1),
-    field => getParent(field).elemID.getFullName()
-  )
-  Object.values(customObjectFieldsByParent).forEach(fields => fields.forEach((field, i) => {
-    field.value.actual_position = i
-  }))
-}
-
 /**
  *  Convert custom object field values to reference expressions
  *  preDeploy handles values that are users, including fallback user
@@ -352,8 +339,6 @@ const customObjectFieldsFilter: FilterCreator = ({ config, client }) => {
       const triggers = instances.filter(instance => instance.elemID.typeName === TRIGGER_TYPE_NAME)
       const ticketFields = instances.filter(instance => instance.elemID.typeName === TICKET_FIELD_TYPE_NAME)
       const customObjectFields = instances.filter(inst => inst.elemID.typeName === CUSTOM_OBJECT_FIELD_TYPE_NAME)
-
-      setCustomObjectFieldsActualPositions(customObjectFields)
 
       triggers.forEach(
         trigger => transformTriggerValue({
