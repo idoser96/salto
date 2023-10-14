@@ -2524,14 +2524,14 @@ export const DEFAULT_TYPES: ZendeskApiConfig['types'] = {
       idFields: ['key'],
       sourceTypeName: 'custom_objects__custom_objects',
       standaloneFields: [{ fieldName: 'custom_object_fields' }],
-      fieldsToHide: FIELDS_TO_HIDE,
-      fieldsToOmit: FIELDS_TO_OMIT.concat(
+      fieldsToHide: FIELDS_TO_HIDE.concat(
         { fieldName: 'created_by_user_id', fieldType: 'string' },
         { fieldName: 'updated_by_user_id', fieldType: 'string' },
         { fieldName: 'title', fieldType: 'string' },
         { fieldName: 'title_pluralized', fieldType: 'string' },
         { fieldName: 'description', fieldType: 'string' },
       ),
+      fieldsToOmit: FIELDS_TO_OMIT,
       fieldTypeOverrides: [{ fieldName: 'id', fieldType: 'number' }],
     },
     deployRequests: {
@@ -2562,11 +2562,9 @@ export const DEFAULT_TYPES: ZendeskApiConfig['types'] = {
   custom_object_fields: {
     request: {
       url: '/api/v2/custom_objects/{custom_object_key}/fields',
-      dependsOn: [
-        { pathParam: 'custom_object_key', from: { type: 'custom_objects', field: 'key' } },
-      ],
       queryParams: {
         ...DEFAULT_QUERY_PARAMS,
+        // Some fields are 'standard' and are not custom by the user, and won't be returned unless explicitly requested
         include_standard_fields: 'true',
       },
       paginationField: CURSOR_BASED_PAGINATION_FIELD,

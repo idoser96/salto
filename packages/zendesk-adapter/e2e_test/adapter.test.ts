@@ -60,13 +60,20 @@ import {
   SUPPORTED_TYPES,
 } from '../src/config'
 import {
-  ARTICLE_ATTACHMENT_TYPE_NAME, ARTICLE_ATTACHMENTS_FIELD, ARTICLE_ORDER_TYPE_NAME,
+  ARTICLE_ATTACHMENT_TYPE_NAME,
+  ARTICLE_ATTACHMENTS_FIELD,
+  ARTICLE_ORDER_TYPE_NAME,
   ARTICLE_TRANSLATION_TYPE_NAME,
   ARTICLE_TYPE_NAME,
   BRAND_TYPE_NAME,
   CATEGORY_TRANSLATION_TYPE_NAME,
-  CATEGORY_TYPE_NAME, GUIDE,
-  PERMISSION_GROUP_TYPE_NAME, SECTION_ORDER_TYPE_NAME,
+  CATEGORY_TYPE_NAME,
+  CUSTOM_OBJECT_FIELD_OPTIONS_TYPE_NAME,
+  CUSTOM_OBJECT_FIELD_TYPE_NAME,
+  CUSTOM_OBJECT_TYPE_NAME,
+  GUIDE,
+  PERMISSION_GROUP_TYPE_NAME,
+  SECTION_ORDER_TYPE_NAME,
   SECTION_TRANSLATION_TYPE_NAME,
   SECTION_TYPE_NAME,
   USER_SEGMENT_TYPE_NAME,
@@ -208,6 +215,7 @@ describe('Zendesk adapter E2E', () => {
     const testSuffix = uuidv4().slice(0, 8)
     const testOptionValue = uuidv4().slice(0, 8)
     let elements: Element[] = []
+    let customObjectInstances: InstanceElement[]
     let guideInstances : InstanceElement[]
     const createName = (type: string): string => `Test${type}${testSuffix}`
     const createSubdomainName = (): string => `test${testSuffix}`
@@ -466,6 +474,65 @@ describe('Zendesk adapter E2E', () => {
         type: 'user_segment',
         valuesOverride: { name: createName('user_segment'), user_type: 'signed_in_users', built_in: false },
       })
+
+      const customObjectInstance = createInstanceElement({
+        type: CUSTOM_OBJECT_TYPE_NAME,
+        valuesOverride: {
+          raw_title: `title${testSuffix}`,
+          raw_title_pluralized: `titles${testSuffix}`,
+          raw_description: `description${testSuffix}`,
+        },
+      })
+
+      const customObjectFieldInstance1 = createInstanceElement({
+        type: CUSTOM_OBJECT_FIELD_TYPE_NAME,
+        valuesOverride: {
+          type: 'lookup',
+          key: `key1${testSuffix}`,
+          raw_title: `title1${testSuffix}`,
+          raw_description: `description1${testSuffix}`,
+          relationship_target_type: 'zen:ticket',
+          system: false,
+          active: true,
+        },
+        parent: customObjectInstance,
+      })
+
+      const customObjectFieldInstance2 = createInstanceElement({
+        type: CUSTOM_OBJECT_FIELD_TYPE_NAME,
+        valuesOverride: {
+          type: 'dropdown',
+          key: `key2${testSuffix}`,
+          raw_title: `title2${testSuffix}`,
+          raw_description: `description2${testSuffix}`,
+          system: false,
+          active: true,
+        },
+        parent: customObjectInstance,
+      })
+
+      const customObjectFieldOptionInstance1 = createInstanceElement({
+        type: CUSTOM_OBJECT_FIELD_OPTIONS_TYPE_NAME,
+        valuesOverride: {
+          raw_name: `name1${testSuffix}`,
+          value: `value1${testSuffix}`,
+        },
+        parent: customObjectFieldInstance1,
+      })
+
+      const customObjectFieldOptionInstance2 = createInstanceElement({
+        type: CUSTOM_OBJECT_FIELD_OPTIONS_TYPE_NAME,
+        valuesOverride: {
+          raw_name: `name2${testSuffix}`,
+          value: `value2${testSuffix}`,
+        },
+        parent: customObjectFieldInstance1,
+      })
+
+      customObjectInstance.value.custom_object_fields = [
+        new ReferenceExpression(customObjectFieldInstance1.elemID, customObjectFieldInstance1),
+        new ReferenceExpression(customObjectFieldInstance2.elemID, customObjectFieldInstance2),
+      ]
 
       // ***************** guide instances ******************* //
 
@@ -896,6 +963,14 @@ describe('Zendesk adapter E2E', () => {
         name: `${sectionName}_${categoryName}_${HELP_CENTER_BRAND_NAME}`,
       })
 
+      customObjectInstances = [
+        customObjectInstance,
+        customObjectFieldInstance1,
+        customObjectFieldInstance2,
+        customObjectFieldOptionInstance1,
+        customObjectFieldOptionInstance2,
+      ]
+
 
       guideInstances = [
         categoryInstance,
@@ -969,6 +1044,7 @@ describe('Zendesk adapter E2E', () => {
         viewInstance,
         brandInstanceToAdd,
         userSegmentInstance,
+        ...customObjectInstances,
         // guide elements
         ...guideInstances,
       ]
