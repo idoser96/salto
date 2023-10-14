@@ -2562,11 +2562,7 @@ export const DEFAULT_TYPES: ZendeskApiConfig['types'] = {
   custom_object_fields: {
     request: {
       url: '/api/v2/custom_objects/{custom_object_key}/fields',
-      queryParams: {
-        ...DEFAULT_QUERY_PARAMS,
-        // Some fields are 'standard' and are not custom by the user, and won't be returned unless explicitly requested
-        include_standard_fields: 'true',
-      },
+      queryParams: { ...DEFAULT_QUERY_PARAMS },
       paginationField: CURSOR_BASED_PAGINATION_FIELD,
     },
     transformation: {
