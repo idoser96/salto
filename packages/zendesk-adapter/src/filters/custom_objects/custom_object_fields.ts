@@ -372,6 +372,7 @@ const customObjectFieldsFilter: FilterCreator = ({ config, client }) => {
     },
     // Knowing if a value is a user depends on the custom_object_field attached to its condition's field
     // For that reason we need to specifically handle it here, using 'is_user_value' field that we added in onFetch
+    // non-user references are handled by handle_template_expressions.ts
     preDeploy: async (changes: Change<InstanceElement>[]) => {
       const users = await getUsers(paginator)
       const usersByEmail = _.keyBy(users, user => user.email)
