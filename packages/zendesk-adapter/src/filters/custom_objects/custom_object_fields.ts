@@ -306,13 +306,13 @@ const getUserConditions = (changes: Change<InstanceElement>[]): CustomObjectCond
   const ticketFields = instances.filter(instance => instance.elemID.typeName === TICKET_FIELD_TYPE_NAME)
   const customObjectFields = instances.filter(instance => instance.elemID.typeName === CUSTOM_OBJECT_FIELD_TYPE_NAME)
 
-  const triggerConditions = triggers.flatMap(trigger =>
+  const triggerUserConditions = triggers.flatMap(trigger =>
     filterUserConditions(trigger.value.conditions, isRelevantCondition))
 
-  const ticketAndCustomObjectFieldFilters = ticketFields.concat(customObjectFields).flatMap(field =>
+  const ticketAndCustomObjectFieldUserFilters = ticketFields.concat(customObjectFields).flatMap(field =>
     filterUserConditions(field.value.relationship_filter, isRelevantRelationshipFilter))
 
-  return triggerConditions.concat(ticketAndCustomObjectFieldFilters)
+  return triggerUserConditions.concat(ticketAndCustomObjectFieldUserFilters)
 }
 
 /**
@@ -395,7 +395,7 @@ const customObjectFieldsFilter: FilterCreator = ({ config, client }) => {
           userEmails,
           client
         )
-        if (fallbackValue !== undefined && usersByEmail[fallbackValue]) {
+        if (fallbackValue !== undefined && usersByEmail[fallbackValue] !== undefined) {
           const fallbackUserId = usersByEmail[fallbackValue].id.toString()
           userPathToOriginalValue[fallbackUserId] = fallbackValue
           // We do not need to revert the fallback value in onDeploy because we change the value in the service
@@ -409,7 +409,7 @@ const customObjectFieldsFilter: FilterCreator = ({ config, client }) => {
     },
     onDeploy: async (changes: Change<InstanceElement>[]) => {
       getUserConditions(changes).forEach(condition => {
-        condition.value = _.isString(condition.value) && userPathToOriginalValue[condition.value]
+        condition.value = _.isString(condition.value) && userPathToOriginalValue[condition.value] !== undefined
           ? userPathToOriginalValue[condition.value]
           : condition.value
       })
