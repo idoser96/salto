@@ -23,7 +23,7 @@ import {
   isReferenceExpression,
   Change,
   isAdditionOrModificationChange,
-  getChangeData, isInstanceChange,
+  getChangeData,
 } from '@salto-io/adapter-api'
 import _ from 'lodash'
 import { references as referencesUtils, client as clientUtils } from '@salto-io/adapter-components'
@@ -297,9 +297,8 @@ const filterUserConditions = (
 
 // Returns all the custom object conditions that reference a user in the changes
 // We don't return the condition's path because it is irrelevant, the same userId will be equal in different conditions
-const getUserConditions = (changes: Change[]): CustomObjectCondition[] => {
+const getUserConditions = (changes: Change<InstanceElement>[]): CustomObjectCondition[] => {
   const instances = changes
-    .filter(isInstanceChange)
     .filter(isAdditionOrModificationChange)
     .map(getChangeData)
 
@@ -307,13 +306,13 @@ const getUserConditions = (changes: Change[]): CustomObjectCondition[] => {
   const ticketFields = instances.filter(instance => instance.elemID.typeName === TICKET_FIELD_TYPE_NAME)
   const customObjectFields = instances.filter(instance => instance.elemID.typeName === CUSTOM_OBJECT_FIELD_TYPE_NAME)
 
-  const triggerConditions = triggers.flatMap(trigger =>
+  const triggerUserConditions = triggers.flatMap(trigger =>
     filterUserConditions(trigger.value.conditions, isRelevantCondition))
 
-  const ticketAndCustomObjectFieldFilters = ticketFields.concat(customObjectFields).flatMap(field =>
+  const ticketAndCustomObjectFieldUserFilters = ticketFields.concat(customObjectFields).flatMap(field =>
     filterUserConditions(field.value.relationship_filter, isRelevantRelationshipFilter))
 
-  return triggerConditions.concat(ticketAndCustomObjectFieldFilters)
+  return triggerUserConditions.concat(ticketAndCustomObjectFieldUserFilters)
 }
 
 /**
@@ -373,7 +372,8 @@ const customObjectFieldsFilter: FilterCreator = ({ config, client }) => {
     },
     // Knowing if a value is a user depends on the custom_object_field attached to its condition's field
     // For that reason we need to specifically handle it here, using 'is_user_value' field that we added in onFetch
-    preDeploy: async changes => {
+    // non-user references are handled by handle_template_expressions.ts
+    preDeploy: async (changes: Change<InstanceElement>[]) => {
       const users = await getUsers(paginator)
       const usersByEmail = _.keyBy(users, user => user.email)
 
@@ -396,7 +396,7 @@ const customObjectFieldsFilter: FilterCreator = ({ config, client }) => {
           userEmails,
           client
         )
-        if (fallbackValue !== undefined && usersByEmail[fallbackValue]) {
+        if (fallbackValue !== undefined && usersByEmail[fallbackValue] !== undefined) {
           const fallbackUserId = usersByEmail[fallbackValue].id.toString()
           userPathToOriginalValue[fallbackUserId] = fallbackValue
           // We do not need to revert the fallback value in onDeploy because we change the value in the service
@@ -408,9 +408,9 @@ const customObjectFieldsFilter: FilterCreator = ({ config, client }) => {
         }
       }
     },
-    onDeploy: async changes => {
+    onDeploy: async (changes: Change<InstanceElement>[]) => {
       getUserConditions(changes).forEach(condition => {
-        condition.value = _.isString(condition.value) && userPathToOriginalValue[condition.value]
+        condition.value = _.isString(condition.value) && userPathToOriginalValue[condition.value] !== undefined
           ? userPathToOriginalValue[condition.value]
           : condition.value
       })
