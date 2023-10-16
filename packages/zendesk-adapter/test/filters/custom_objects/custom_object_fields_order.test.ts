@@ -26,11 +26,10 @@ import {
   CUSTOM_OBJECT_FIELD_ORDER_TYPE_NAME,
   CUSTOM_OBJECT_FIELD_TYPE_NAME,
   CUSTOM_OBJECT_TYPE_NAME,
+  ORDER_FIELD,
   ZENDESK,
 } from '../../../src/constants'
-import filterCreator, {
-  customObjectFieldsOrderType, ORDER_FIELD,
-} from '../../../src/filters/custom_objects/custom_object_fields_order'
+import filterCreator, { customObjectFieldsOrderType } from '../../../src/filters/custom_objects/custom_object_fields_order'
 import { createFilterCreatorParams } from '../../utils'
 import ZendeskClient from '../../../src/client/client'
 
@@ -100,6 +99,16 @@ describe('customObjectFieldsOrderFilter', () => {
         customObject2
       ))
     })
+    it('should not crash with field instance without a parent', async () => {
+      const elements = [customObject1, customObjectField1, customObjectField2]
+      customObjectField1.annotations[CORE_ANNOTATIONS.PARENT] = undefined
+      await customObjectFieldsOrderFilter.onFetch(elements)
+      expect(elements[elements.length - 1]).toEqual(createCustomObjectFieldsOrder(
+        `${customObject1.elemID.name}_fields_order`,
+        [customObjectField2],
+        customObject1
+      ))
+    })
   })
   describe('deploy', () => {
     it('should send a request to reorder the fields', async () => {
@@ -144,15 +153,18 @@ describe('customObjectFieldsOrderFilter', () => {
         [customObjectField1, customObjectField2, customObjectField3],
         customObject2
       )
+      const orderWithoutParent = orderWithoutParentKey.clone()
+      orderWithoutParent.annotations[CORE_ANNOTATIONS.PARENT] = undefined
 
       putSpy.mockRejectedValueOnce({ response: { status: 400, data: { error: 'test' } } })
       const changes = [
         toChange({ after: customObjectFieldsOrder }),
         toChange({ before: orderWithoutParentKey, after: orderWithoutParentKey }),
+        toChange({ before: orderWithoutParent, after: orderWithoutParent }),
       ]
       const deployResults = await customObjectFieldsOrderFilter.deploy(changes)
       expect(deployResults.deployResult.appliedChanges).toMatchObject([])
-      expect(deployResults.deployResult.errors).toHaveLength(2)
+      expect(deployResults.deployResult.errors).toHaveLength(3)
       expect(deployResults.deployResult.errors[0]).toMatchObject({
         elemID: getChangeData(changes[0]).elemID,
         severity: 'Error',
@@ -162,6 +174,37 @@ describe('customObjectFieldsOrderFilter', () => {
         elemID: getChangeData(changes[1]).elemID,
         severity: 'Error',
         message: 'parent custom_object key is undefined',
+      })
+      expect(deployResults.deployResult.errors[2]).toMatchObject({
+        elemID: getChangeData(changes[2]).elemID,
+        severity: 'Error',
+        message: 'parent custom_object is undefined',
+      })
+    })
+    it('should ignore fields without id', async () => {
+      putSpy.mockResolvedValue({ status: 200 })
+      customObjectField1.value.id = undefined
+      const customObjectFieldsOrder = createCustomObjectFieldsOrder(
+        `${customObject1.elemID.name}_fields_order`,
+        [customObjectField1, customObjectField2, customObjectField3],
+        customObject1
+      )
+
+      const changes = [
+        toChange({ after: customObjectFieldsOrder }),
+      ]
+      const deployResults = await customObjectFieldsOrderFilter.deploy(changes)
+      expect(deployResults.deployResult.errors).toHaveLength(0)
+      expect(deployResults.deployResult.appliedChanges).toMatchObject(changes)
+      expect(putSpy).toHaveBeenCalledTimes(1)
+      expect(putSpy).toHaveBeenCalledWith({
+        url: `/api/v2/custom_objects/${customObject1.value.key}/fields/reorder`,
+        data: {
+          custom_object_field_ids: [
+            customObjectField2.value.id.toString(),
+            customObjectField3.value.id.toString(),
+          ],
+        },
       })
     })
   })

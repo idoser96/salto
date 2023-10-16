@@ -86,3 +86,4 @@ export const CUSTOM_OBJECT_TYPE_NAME = 'custom_object'
 export const CUSTOM_OBJECT_FIELD_TYPE_NAME = 'custom_object_field'
 export const CUSTOM_OBJECT_FIELD_ORDER_TYPE_NAME = 'custom_object_field_order'
 export const CUSTOM_OBJECT_FIELD_OPTIONS_TYPE_NAME = `${CUSTOM_OBJECT_FIELD_TYPE_NAME}__${CUSTOM_FIELD_OPTIONS_FIELD_NAME}`
+export const ORDER_FIELD = `${CUSTOM_OBJECT_FIELD_TYPE_NAME}s`

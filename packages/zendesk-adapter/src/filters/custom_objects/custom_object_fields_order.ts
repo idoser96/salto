@@ -31,14 +31,13 @@ import {
   CUSTOM_OBJECT_FIELD_ORDER_TYPE_NAME,
   CUSTOM_OBJECT_FIELD_TYPE_NAME,
   CUSTOM_OBJECT_TYPE_NAME,
+  ORDER_FIELD,
   ZENDESK,
 } from '../../constants'
 
 const { RECORDS_PATH } = elementsUtils
 const log = logger(module)
 const { isDefined } = lowerDashValues
-
-export const ORDER_FIELD = `${CUSTOM_OBJECT_FIELD_TYPE_NAME}s`
 
 export const customObjectFieldsOrderType = new ObjectType({
   elemID: new ElemID(ZENDESK, CUSTOM_OBJECT_FIELD_ORDER_TYPE_NAME),
@@ -75,6 +74,10 @@ const customObjectFieldsOrderFilter: FilterCreator = ({ client }) => ({
 
     Object.entries(customObjectFieldsByParentName).forEach(([parentName, fields]) => {
       const parent = customObjectsByFullName[parentName]
+      if (parent === undefined) {
+        log.error(`customObjectFieldsOrder - parent custom object not found - ${parentName}`)
+        return
+      }
       const instanceName = `${parent.elemID.name}_fields_order`
       const orderInstance = new InstanceElement(
         instanceName,
@@ -84,9 +87,7 @@ const customObjectFieldsOrderFilter: FilterCreator = ({ client }) => ({
         },
         [ZENDESK, RECORDS_PATH, CUSTOM_OBJECT_FIELD_ORDER_TYPE_NAME, instanceName],
         {
-          [CORE_ANNOTATIONS.PARENT]: parent
-            ? [new ReferenceExpression(parent.elemID, parent)]
-            : undefined,
+          [CORE_ANNOTATIONS.PARENT]: [new ReferenceExpression(parent.elemID, parent)],
         }
       )
       elements.push(orderInstance)
@@ -105,16 +106,24 @@ const customObjectFieldsOrderFilter: FilterCreator = ({ client }) => ({
       .filter(isInstanceChange) // used to type check
       .map(async change => {
         const customObjectFieldOrder = getChangeData(change)
-        const parentKey = getParent(customObjectFieldOrder).value.key
-        if (parentKey === undefined) {
+        let parentKey: string
+        try {
+          parentKey = getParent(customObjectFieldOrder).value.key
+          if (parentKey === undefined) {
+            return {
+              change,
+              error: 'parent custom_object key is undefined',
+            }
+          }
+        } catch (e) {
           return {
             change,
-            error: 'parent custom_object key is undefined',
+            error: 'parent custom_object is undefined',
           }
         }
         const fieldsIds = customObjectFieldOrder.value[ORDER_FIELD]
           .map((field: Value) => {
-            if (isResolvedReferenceExpression(field)) {
+            if (isResolvedReferenceExpression(field) && field.value.value.id !== undefined) {
               return field.value.value.id.toString()
             }
             if (_.isPlainObject(field) && _.isNumber(field.id)) {
