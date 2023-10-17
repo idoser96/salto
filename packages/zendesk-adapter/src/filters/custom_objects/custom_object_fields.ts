@@ -85,12 +85,13 @@ type CustomObjectAction = {
   value: Array<string | TemplateExpression> | string | TemplateExpression
 }
 
-const isRelevantAction = (action: Value): action is CustomObjectAction =>
+const isRelevantAction = (action: Value): action is CustomObjectAction => (
   _.isPlainObject(action)
   && _.isString(action.field)
   // makeArray to catch both cases where value is a string or an array of strings
   && makeArray(action.value).every(_.isString)
   && LOOKUP_REGEX.test(makeArray(action.value)[0])
+)
 
 type CustomObjectCondition = {
   field: string | TemplateExpression
