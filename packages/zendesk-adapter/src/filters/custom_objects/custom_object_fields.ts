@@ -23,7 +23,7 @@ import {
   isReferenceExpression,
   Change,
   isAdditionOrModificationChange,
-  getChangeData,
+  getChangeData, isInstanceChange,
 } from '@salto-io/adapter-api'
 import _ from 'lodash'
 import { references as referencesUtils, client as clientUtils } from '@salto-io/adapter-components'
@@ -85,12 +85,13 @@ type CustomObjectAction = {
   value: Array<string | TemplateExpression> | string | TemplateExpression
 }
 
-const isRelevantAction = (action: Value): action is CustomObjectAction =>
+const isRelevantAction = (action: Value): action is CustomObjectAction => (
   _.isPlainObject(action)
   && _.isString(action.field)
   // makeArray to catch both cases where value is a string or an array of strings
   && makeArray(action.value).every(_.isString)
   && LOOKUP_REGEX.test(makeArray(action.value)[0])
+)
 
 type CustomObjectCondition = {
   field: string | TemplateExpression
@@ -297,8 +298,9 @@ const filterUserConditions = (
 
 // Returns all the custom object conditions that reference a user in the changes
 // We don't return the condition's path because it is irrelevant, the same userId will be equal in different conditions
-const getUserConditions = (changes: Change<InstanceElement>[]): CustomObjectCondition[] => {
+const getUserConditions = (changes: Change[]): CustomObjectCondition[] => {
   const instances = changes
+    .filter(isInstanceChange)
     .filter(isAdditionOrModificationChange)
     .map(getChangeData)
 
@@ -373,7 +375,7 @@ const customObjectFieldsFilter: FilterCreator = ({ config, client }) => {
     // Knowing if a value is a user depends on the custom_object_field attached to its condition's field
     // For that reason we need to specifically handle it here, using 'is_user_value' field that we added in onFetch
     // non-user references are handled by handle_template_expressions.ts
-    preDeploy: async (changes: Change<InstanceElement>[]) => {
+    preDeploy: async changes => {
       const users = await getUsers(paginator)
       const usersByEmail = _.keyBy(users, user => user.email)
 
@@ -408,7 +410,7 @@ const customObjectFieldsFilter: FilterCreator = ({ config, client }) => {
         }
       }
     },
-    onDeploy: async (changes: Change<InstanceElement>[]) => {
+    onDeploy: async changes => {
       getUserConditions(changes).forEach(condition => {
         condition.value = _.isString(condition.value) && userPathToOriginalValue[condition.value] !== undefined
           ? userPathToOriginalValue[condition.value]

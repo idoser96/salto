@@ -61,6 +61,7 @@ import {
   BRAND_LOGO_TYPE_NAME,
   BRAND_TYPE_NAME,
   CUSTOM_OBJECT_FIELD_OPTIONS_TYPE_NAME,
+  CUSTOM_OBJECT_FIELD_ORDER_TYPE_NAME,
   DEFAULT_CUSTOM_STATUSES_TYPE_NAME,
   ZENDESK,
 } from './constants'
@@ -149,6 +150,7 @@ import { filterOutInactiveInstancesForType } from './inactive'
 import handleIdenticalAttachmentConflicts from './filters/handle_identical_attachment_conflicts'
 import customObjectFilter from './filters/custom_objects/custom_object'
 import customObjectFieldFilter from './filters/custom_objects/custom_object_fields'
+import customObjectFieldsOrderFilter from './filters/custom_objects/custom_object_fields_order'
 import customObjectFieldOptionsFilter from './filters/custom_field_options/custom_object_field_options'
 
 const { makeArray } = collections.array
@@ -219,6 +221,7 @@ export const DEFAULT_FILTERS = [
   guideServiceUrl,
   guideLocalesFilter, // Needs to be after guideServiceUrl
   customObjectFilter,
+  customObjectFieldsOrderFilter,
   customObjectFieldOptionsFilter,
   customObjectFieldFilter, // need to be after customObjectFieldOptionsFilter
   // fieldReferencesFilter should be after:
@@ -837,7 +840,7 @@ export default class ZendeskAdapter implements AdapterOperations {
         deployConfig: this.userConfig[DEPLOY_CONFIG],
         typesDeployedViaParent: ['organization_field__custom_field_options', 'macro_attachment', BRAND_LOGO_TYPE_NAME, CUSTOM_OBJECT_FIELD_OPTIONS_TYPE_NAME],
         // article_attachment additions supported in a filter
-        typesWithNoDeploy: ['tag', ARTICLE_ATTACHMENT_TYPE_NAME, ...GUIDE_ORDER_TYPES, DEFAULT_CUSTOM_STATUSES_TYPE_NAME],
+        typesWithNoDeploy: ['tag', ARTICLE_ATTACHMENT_TYPE_NAME, ...GUIDE_ORDER_TYPES, DEFAULT_CUSTOM_STATUSES_TYPE_NAME, CUSTOM_OBJECT_FIELD_ORDER_TYPE_NAME],
       }),
       dependencyChanger,
       getChangeGroupIds,

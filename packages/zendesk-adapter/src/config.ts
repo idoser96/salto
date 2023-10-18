@@ -2611,7 +2611,7 @@ export const DEFAULT_TYPES: ZendeskApiConfig['types'] = {
         method: 'delete',
         urlParamsToFields: {
           custom_object_key: '_parent.0.key',
-          custom_object_field_key: 'id',
+          custom_object_field_key: 'key',
         },
       },
     },
