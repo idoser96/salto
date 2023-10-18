@@ -1177,9 +1177,9 @@ describe('Zendesk adapter E2E', () => {
               : CUSTOM_FIELD_OPTIONS_FIELD_NAME
 
             instanceClone.value[fieldToHandle] = (instanceClone.value[fieldToHandle] ?? [])
-              .map((ref: ReferenceExpression) => ref.value.elemID.getFullName())
+              .map((ref: ReferenceExpression) => ref.elemID.getFullName())
             instanceToAddClone.value[fieldToHandle] = (instanceToAddClone.value[fieldToHandle] ?? [])
-              .map((ref: ReferenceExpression) => ref.value.elemID.getFullName())
+              .map((ref: ReferenceExpression) => ref.elemID.getFullName())
 
             expect(instanceClone.value).toMatchObject(instanceToAddClone.value)
           } else {
